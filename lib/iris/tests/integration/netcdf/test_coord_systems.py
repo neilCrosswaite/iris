@@ -13,6 +13,7 @@ import shutil
 import tempfile
 import warnings
 
+from netCDF4 import Dataset
 import pytest
 
 import iris
@@ -213,6 +214,25 @@ data:
         test_crs = cube.coord("projection_y_coordinate").coord_system
         actual = str(test_crs.as_cartopy_crs().datum)
         assert actual == expected
+
+    def test_load_save_wkt(self):
+        expected_crs_wkt = """GEOGCRS["OSGB36",DATUM["Ordnance Survey of Great Britain 1936",ELLIPSOID["Airy 1830",6377563.396,299.3249646,LENGTHUNIT["metre",1]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433]],CS[ellipsoidal,2],AXIS["geodetic latitude (Lat)",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433]],AXIS["geodetic longitude (Lon)",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433]],USAGE[SCOPE["Geodesy."],AREA["United Kingdom (UK) - offshore to boundary of UKCS within 49°45\'N to 61°N and 9°W to 2°E; onshore Great Britain (England, Wales and Scotland). Isle of Man onshore."],BBOX[49.75,-9.01,61.01,2.01]],ID["EPSG",4277]]"""
+
+        nc_path = tlc.cdl_to_nc(self.datum_wkt_cdl)
+        with iris.FUTURE.context(datum_support=True):
+            cube = iris.load_cube(nc_path)
+
+        test_crs = cube.coord("projection_y_coordinate").coord_system
+        actual_wkt = test_crs.ellipsoid.crs_wkt
+
+        assert actual_wkt == expected_crs_wkt
+
+        with self.temp_filename(suffix=".nc") as filename:
+            iris.save(cube, filename)
+            with Dataset(filename, "r") as nc_file:
+                saved_crs_wkt = vars(nc_file.variables["mercator"])["crs_wkt"]
+
+        assert expected_crs_wkt == saved_crs_wkt
 
 
 class TestLoadMinimalGeostationary(tests.IrisTest):
